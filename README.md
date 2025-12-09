@@ -22,7 +22,34 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```bash
 MG_API_KEY='xxxxxxxxxx'                     # Mailgun API Key (required)
 MG_MAIL_DOMAIN='mg.sample.com'              # Domain for single-domain operations (optional)
+SRC_MG_DOMAIN='sandbox.mailgun.org'         # Source domain for Makefile operations (optional)
+TGT_MG_DOMAIN='mg.example.com'              # Target domain for Makefile operations (optional)
 MG_BASE_URL='https://api.mailgun.net/v3'    # Mailgun API base URL (optional, defaults shown)
+```
+
+## Quick Start (Using Makefile)
+
+The easiest way to copy templates across domains:
+
+```bash
+# Set environment variables
+export MG_API_KEY='your-api-key'
+export SRC_MG_DOMAIN='sandbox647641198e804fa69bdaccdeb73f5e46.mailgun.org'
+export TGT_MG_DOMAIN='mg.maestropower.co.nz'
+
+# Copy both templates at once
+make copy-all
+
+# Or copy individual templates
+make copy-remittance
+make copy-remittance-low
+
+# List versions
+make list-versions-src
+make list-versions-dst
+
+# See all available targets
+make help
 ```
 
 ## Usage
