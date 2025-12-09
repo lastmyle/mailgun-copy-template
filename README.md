@@ -29,7 +29,7 @@ MG_BASE_URL='https://api.mailgun.net/v3'    # Mailgun API base URL (optional, de
 
 ## Quick Start (Using Makefile)
 
-The easiest way to copy templates across domains:
+The Makefile provides convenient commands for common operations:
 
 ```bash
 # Set environment variables
@@ -37,16 +37,20 @@ export MG_API_KEY='your-api-key'
 export SRC_MG_DOMAIN='sandbox647641198e804fa69bdaccdeb73f5e46.mailgun.org'
 export TGT_MG_DOMAIN='mg.maestropower.co.nz'
 
-# Copy all templates (default: remittance and remittance-low)
-make copy
+# List available templates
+make list-templates-src
+make list-templates-dst
 
-# Copy specific template(s)
-make copy TEMPLATES='remittance'
-make copy TEMPLATES='remittance remittance-low custom-template'
+# Copy a single template with different names
+make copy SRC_TEMPLATE='remittance' DST_TEMPLATE='remittance-low'
 
-# List versions
-make list-versions-src
-make list-versions-dst
+# Publish template(s) to another domain (same names)
+make publish TEMPLATES='remittance'
+make publish TEMPLATES='remittance remittance-low'
+
+# List template versions
+make list-versions-src TEMPLATES='remittance'
+make list-versions-dst TEMPLATES='remittance remittance-low'
 
 # See all available targets
 make help
