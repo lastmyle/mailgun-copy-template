@@ -7,7 +7,11 @@ Copy Mailgun email templates within a domain or across domains. Supports both HT
 This project uses [uv](https://github.com/astral-sh/uv) for Python dependency management:
 
 ```bash
-# Install uv (if not already installed)
+# Install uv
+# Option 1: Using Homebrew (macOS/Linux)
+brew install uv
+
+# Option 2: Using the installer script
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Dependencies will be automatically managed when running scripts with 'uv run'
