@@ -15,16 +15,37 @@ def get_template(name):
         print(f"Failed to fetch template '{name}': {r.text}")
         return None
 
-def create_template(name, description, template):
-    r = requests.post('{}/{}/templates'.format(MG_BASE_URL, MG_MAIL_DOMAIN), auth=('api', MG_API_KEY), data={
+def create_template(name, description, template, engine=None, mjml=None):
+    # Step 1: Create empty template
+    data = {
         'name': name,
-        'description': description,
-        'template': template
-    })
-    if r.status_code == 200 and r.json().get('message') == 'template has been stored':
-        return r.json()['template']
-    else:
+        'description': description
+    }
+    r = requests.post('{}/{}/templates'.format(MG_BASE_URL, MG_MAIL_DOMAIN), auth=('api', MG_API_KEY), data=data)
+    if r.status_code != 200 or r.json().get('message') != 'template has been stored':
         print(f"Failed to create template '{name}': {r.text}")
+        return None
+
+    # Step 2: Create initial version with template content
+    version_data = {
+        'tag': 'initial'
+    }
+    if engine:
+        version_data['engine'] = engine
+
+    version_files = {
+        'template': (None, template)
+    }
+    if mjml:
+        # For Visual Builder templates, include both template and mjml
+        version_files['mjml'] = (None, mjml)
+
+    r2 = requests.post('{}/{}/templates/{}/versions'.format(MG_BASE_URL, MG_MAIL_DOMAIN, name),
+                       auth=('api', MG_API_KEY), data=version_data, files=version_files)
+    if r2.status_code == 200:
+        return r2.json()['template']
+    else:
+        print(f"Failed to create template version for '{name}': {r2.text}")
         return None
 
 def get_template_versions(name):
@@ -69,11 +90,36 @@ if __name__ == "__main__":
         dst_name = sys.argv[2]
         template = get_template(src_name)
         if template:
-            created = create_template(dst_name, template.get('description', ''), template['version']['template'])
-            if created:
-                print(f"Template '{src_name}' copied to '{dst_name}' successfully.")
+            engine = template['version'].get('engine')
+            mjml = template['version'].get('mjml')
+
+            # Check if destination template already exists
+            dst_template = get_template(dst_name)
+            if dst_template:
+                # Template exists, update the initial version
+                print(f"Template '{dst_name}' already exists, updating initial version...")
+                version_data = {
+                    'template': template['version']['template'],
+                    'active': 'yes'
+                }
+                if engine:
+                    version_data['engine'] = engine
+                if mjml:
+                    version_data['mjml'] = mjml
+
+                r = requests.put('{}/{}/templates/{}/versions/initial'.format(MG_BASE_URL, MG_MAIL_DOMAIN, dst_name),
+                                 auth=('api', MG_API_KEY), data=version_data)
+                if r.status_code == 200:
+                    print(f"Template '{src_name}' copied to '{dst_name}' successfully.")
+                else:
+                    print(f"Failed to update version for '{dst_name}': {r.text}")
             else:
-                print(f"Failed to copy template '{src_name}' to '{dst_name}'.")
+                # Template doesn't exist, create it
+                created = create_template(dst_name, template.get('description', ''), template['version']['template'], engine, mjml)
+                if created:
+                    print(f"Template '{src_name}' copied to '{dst_name}' successfully.")
+                else:
+                    print(f"Failed to copy template '{src_name}' to '{dst_name}'.")
         else:
             print(f"Source template '{src_name}' not found.")
     else:
