@@ -37,12 +37,12 @@ export MG_API_KEY='your-api-key'
 export SRC_MG_DOMAIN='sandbox647641198e804fa69bdaccdeb73f5e46.mailgun.org'
 export TGT_MG_DOMAIN='mg.maestropower.co.nz'
 
-# Copy both templates at once
-make copy-all
+# Copy all templates (default: remittance and remittance-low)
+make copy
 
-# Or copy individual templates
-make copy-remittance
-make copy-remittance-low
+# Copy specific template(s)
+make copy TEMPLATES='remittance'
+make copy TEMPLATES='remittance remittance-low custom-template'
 
 # List versions
 make list-versions-src
