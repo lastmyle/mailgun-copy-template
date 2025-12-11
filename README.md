@@ -23,7 +23,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 MG_API_KEY='xxxxxxxxxx'                     # Mailgun API Key (required)
 MG_MAIL_DOMAIN='mg.sample.com'              # Domain for single-domain operations (optional)
 SRC_MG_DOMAIN='sandbox.mailgun.org'         # Source domain for Makefile operations (optional)
-TGT_MG_DOMAIN='mg.example.com'              # Target domain for Makefile operations (optional)
+DST_MG_DOMAIN='mg.example.com'              # Target domain for Makefile operations (optional)
 MG_BASE_URL='https://api.mailgun.net/v3'    # Mailgun API base URL (optional, defaults shown)
 ```
 
@@ -35,7 +35,7 @@ The Makefile provides convenient commands for common operations:
 # Set environment variables
 export MG_API_KEY='your-api-key'
 export SRC_MG_DOMAIN='sandbox647641198e804fa69bdaccdeb73f5e46.mailgun.org'
-export TGT_MG_DOMAIN='mg.maestropower.co.nz'
+export DST_MG_DOMAIN='mg.maestropower.co.nz'
 
 # List available templates
 make list-templates-src
@@ -98,6 +98,7 @@ Mailgun uses an internal `createdBy: dnd` field to mark templates created with t
 ### Workflow:
 
 1. **Create empty template(s) in Mailgun UI:**
+
    - Go to Mailgun dashboard
    - Select the destination domain
    - Navigate to Templates
@@ -107,6 +108,7 @@ Mailgun uses an internal `createdBy: dnd` field to mark templates created with t
    - Save the empty template
 
 2. **Run the copy script:**
+
    ```bash
    # Same domain
    uv run mailgun-copy-template.py remittance remittance-low

@@ -18,7 +18,7 @@ help:
 	@echo "Environment variables:"
 	@echo "  MG_API_KEY         - Mailgun API Key (required)"
 	@echo "  SRC_MG_DOMAIN      - Source Mailgun domain (required for cross-domain)"
-	@echo "  TGT_MG_DOMAIN      - Target Mailgun domain (required for cross-domain)"
+	@echo "  DST_MG_DOMAIN      - Target Mailgun domain (required for cross-domain)"
 	@echo "  MG_MAIL_DOMAIN     - Domain for same-domain operations (required for copy)"
 	@echo ""
 	@echo "Template selection:"
@@ -55,7 +55,7 @@ install:
 check-env:
 	@test -n "$(MG_API_KEY)" || (echo "Error: MG_API_KEY not set" && exit 1)
 	@test -n "$(SRC_MG_DOMAIN)" || (echo "Error: SRC_MG_DOMAIN not set" && exit 1)
-	@test -n "$(TGT_MG_DOMAIN)" || (echo "Error: TGT_MG_DOMAIN not set" && exit 1)
+	@test -n "$(DST_MG_DOMAIN)" || (echo "Error: DST_MG_DOMAIN not set" && exit 1)
 	@echo "✓ Environment variables verified"
 
 # List templates in source domain
@@ -66,8 +66,8 @@ list-templates-src: check-env
 
 # List templates in target domain
 list-templates-dst: check-env
-	@echo "Templates in $(TGT_MG_DOMAIN):"
-	@export MG_MAIL_DOMAIN="$(TGT_MG_DOMAIN)" && \
+	@echo "Templates in $(DST_MG_DOMAIN):"
+	@export MG_MAIL_DOMAIN="$(DST_MG_DOMAIN)" && \
 	uv run mailgun-list-templates.py
 
 # Copy a single template with different names (same or cross domain)
@@ -75,29 +75,29 @@ copy:
 	@test -n "$(MG_API_KEY)" || (echo "Error: MG_API_KEY not set" && exit 1)
 	@test -n "$(SRC_TEMPLATE)" || (echo "Error: SRC_TEMPLATE not set" && exit 1)
 	@test -n "$(DST_TEMPLATE)" || (echo "Error: DST_TEMPLATE not set" && exit 1)
-	@if [ -n "$(SRC_MG_DOMAIN)" ] && [ -n "$(TGT_MG_DOMAIN)" ]; then \
-		echo "Copying '$(SRC_TEMPLATE)' from $(SRC_MG_DOMAIN) to '$(DST_TEMPLATE)' in $(TGT_MG_DOMAIN)..."; \
+	@if [ -n "$(SRC_MG_DOMAIN)" ] && [ -n "$(DST_MG_DOMAIN)" ]; then \
+		echo "Copying '$(SRC_TEMPLATE)' from $(SRC_MG_DOMAIN) to '$(DST_TEMPLATE)' in $(DST_MG_DOMAIN)..."; \
 		uv run mailgun-copy-template-cross-domain.py \
 			"$(SRC_MG_DOMAIN)" "$(SRC_TEMPLATE)" \
-			"$(TGT_MG_DOMAIN)" "$(DST_TEMPLATE)"; \
+			"$(DST_MG_DOMAIN)" "$(DST_TEMPLATE)"; \
 	elif [ -n "$(MG_MAIL_DOMAIN)" ]; then \
 		echo "Copying '$(SRC_TEMPLATE)' to '$(DST_TEMPLATE)' in $(MG_MAIL_DOMAIN)..."; \
 		uv run mailgun-copy-template.py "$(SRC_TEMPLATE)" "$(DST_TEMPLATE)"; \
 	else \
-		echo "Error: Either MG_MAIL_DOMAIN or both SRC_MG_DOMAIN and TGT_MG_DOMAIN must be set"; \
+		echo "Error: Either MG_MAIL_DOMAIN or both SRC_MG_DOMAIN and DST_MG_DOMAIN must be set"; \
 		exit 1; \
 	fi
 
 # Publish templates from source to target domain (same names)
 publish: check-env
 	@test -n "$(TEMPLATES)" || (echo "Error: TEMPLATES not set. Specify template names to publish." && exit 1)
-	@echo "Publishing templates from $(SRC_MG_DOMAIN) to $(TGT_MG_DOMAIN)..."
+	@echo "Publishing templates from $(SRC_MG_DOMAIN) to $(DST_MG_DOMAIN)..."
 	@echo ""
 	@for template in $(TEMPLATES); do \
 		echo "Publishing $$template..."; \
 		uv run mailgun-copy-template-cross-domain.py \
 			"$(SRC_MG_DOMAIN)" "$$template" \
-			"$(TGT_MG_DOMAIN)" "$$template" || exit 1; \
+			"$(DST_MG_DOMAIN)" "$$template" || exit 1; \
 		echo ""; \
 	done
 	@echo "✓ All templates published successfully"
@@ -117,11 +117,11 @@ list-versions-src: check-env
 # List versions in target domain
 list-versions-dst: check-env
 	@test -n "$(TEMPLATES)" || (echo "Error: TEMPLATES not set. Specify template names." && exit 1)
-	@echo "Listing versions in $(TGT_MG_DOMAIN)..."
+	@echo "Listing versions in $(DST_MG_DOMAIN)..."
 	@echo ""
 	@for template in $(TEMPLATES); do \
 		echo "Template: $$template"; \
-		export MG_MAIL_DOMAIN="$(TGT_MG_DOMAIN)" && \
+		export MG_MAIL_DOMAIN="$(DST_MG_DOMAIN)" && \
 		uv run mailgun-copy-template.py list-versions "$$template"; \
 		echo ""; \
 	done

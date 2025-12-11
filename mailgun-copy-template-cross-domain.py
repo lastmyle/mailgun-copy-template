@@ -2,9 +2,34 @@ import requests
 import sys
 import os
 import json
+from datetime import datetime
+from pathlib import Path
 
 MG_BASE_URL = os.environ.get('MG_BASE_URL', 'https://api.mailgun.net/v3')
 MG_API_KEY = os.environ.get('MG_API_KEY', None)
+
+def save_audit_trail(domain, template_name, version_tag, template_html, mjml=None):
+    """Save template content to audit trail directory structure"""
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+
+    # Create directory structure: logs/{timestamp}/{template}/
+    audit_dir = Path('logs') / timestamp / template_name
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save HTML with domain prefix
+    html_file = audit_dir / f'{domain}.html'
+    with open(html_file, 'w') as f:
+        f.write(template_html)
+    print(f"  Saved HTML: {html_file}")
+
+    # Save MJML if present with domain prefix
+    if mjml:
+        mjml_file = audit_dir / f'{domain}.mjml'
+        with open(mjml_file, 'w') as f:
+            f.write(mjml)
+        print(f"  Saved MJML: {mjml_file}")
+
+    return audit_dir
 
 def get_template(domain, name):
     r = requests.get('{}/{}/templates/{}'.format(MG_BASE_URL, domain, name), auth=('api', MG_API_KEY), params={'active': 'yes'})
@@ -12,6 +37,31 @@ def get_template(domain, name):
         return r.json()['template']
     else:
         print(f"Failed to fetch template '{name}' from domain '{domain}': {r.text}")
+        return None
+
+def create_backup_version(domain, name, template_html, engine=None, mjml=None):
+    """Create a timestamped backup version before overwriting initial"""
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    backup_tag = f'backup-{timestamp}'
+
+    version_data = {
+        'template': template_html,
+        'tag': backup_tag,
+        'active': 'no'
+    }
+    if engine:
+        version_data['engine'] = engine
+    if mjml:
+        version_data['mjml'] = mjml
+
+    print(f"  Creating backup version '{backup_tag}'...")
+    r = requests.post('{}/{}/templates/{}/versions'.format(MG_BASE_URL, domain, name),
+                     auth=('api', MG_API_KEY), data=version_data)
+    if r.status_code == 200:
+        print(f"  ✓ Backup version created: {backup_tag}")
+        return r.json()['template']
+    else:
+        print(f"  ⚠️  Warning: Failed to create backup version: {r.text}")
         return None
 
 def create_template_version(domain, name, template_html, engine=None, mjml=None):
@@ -25,10 +75,22 @@ def create_template_version(domain, name, template_html, engine=None, mjml=None)
     if mjml:
         version_data['mjml'] = mjml
 
+    # Try PUT first (update existing version)
     r = requests.put('{}/{}/templates/{}/versions/initial'.format(MG_BASE_URL, domain, name),
                      auth=('api', MG_API_KEY), data=version_data)
     if r.status_code == 200:
         return r.json()['template']
+
+    # If PUT fails with "version not found", try POST to create it
+    if 'version not found' in r.text.lower():
+        print(f"  Initial version doesn't exist, creating it...")
+        r = requests.post('{}/{}/templates/{}/versions'.format(MG_BASE_URL, domain, name),
+                         auth=('api', MG_API_KEY), data={**version_data, 'tag': 'initial'})
+        if r.status_code == 200:
+            return r.json()['template']
+        else:
+            print(f"Failed to create version for '{name}' in domain '{domain}': {r.text}")
+            return None
     else:
         print(f"Failed to update version for '{name}' in domain '{domain}': {r.text}")
         return None
@@ -46,10 +108,15 @@ def copy_template_cross_domain(src_domain, src_name, dst_domain, dst_name):
     engine = src_template['version'].get('engine')
     mjml = src_template['version'].get('mjml')
     template_html = src_template['version']['template']
+    src_version_tag = src_template['version'].get('tag', 'active')
 
     print(f"  Engine: {engine if engine else 'none'}")
     print(f"  MJML: {len(mjml) if mjml else 0} chars")
     print(f"  HTML: {len(template_html)} chars")
+
+    # Save source to audit trail
+    print(f"\nSaving source audit trail...")
+    save_audit_trail(src_domain, src_name, src_version_tag, template_html, mjml)
 
     # Check if destination template exists
     print(f"\nChecking if template '{dst_name}' exists in '{dst_domain}'...")
@@ -71,9 +138,18 @@ def copy_template_cross_domain(src_domain, src_name, dst_domain, dst_name):
                 print("  Aborted.")
                 return False
 
+        # Create backup version with current destination content
+        dst_engine = dst_template['version'].get('engine')
+        dst_mjml = dst_template['version'].get('mjml')
+        dst_html = dst_template['version']['template']
+        create_backup_version(dst_domain, dst_name, dst_html, dst_engine, dst_mjml)
+
         print(f"  Updating initial version...")
         result = create_template_version(dst_domain, dst_name, template_html, engine, mjml)
         if result:
+            # Save destination to audit trail after successful copy
+            print(f"\nSaving destination audit trail...")
+            save_audit_trail(dst_domain, dst_name, 'initial', template_html, mjml)
             print(f"\n✓ Successfully copied '{src_name}' from '{src_domain}' to '{dst_name}' in '{dst_domain}'")
             return True
         else:
@@ -103,9 +179,15 @@ def copy_template_cross_domain(src_domain, src_name, dst_domain, dst_name):
         return False
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    force_update = '--force' in sys.argv
+    args = [arg for arg in sys.argv[1:] if arg != '--force']
+
+    if len(args) != 4:
         print('Usage:')
-        print('  python3 mailgun-copy-template-cross-domain.py <src_domain> <src_template> <dst_domain> <dst_template>')
+        print('  python3 mailgun-copy-template-cross-domain.py <src_domain> <src_template> <dst_domain> <dst_template> [--force]')
+        print('')
+        print('Options:')
+        print('  --force  Skip destination template existence check and attempt update anyway')
         print('')
         print('Example:')
         print('  python3 mailgun-copy-template-cross-domain.py \\')
@@ -122,15 +204,62 @@ if __name__ == "__main__":
         print(f'Current value: {MG_API_KEY}')
         exit(1)
 
-    src_domain = sys.argv[1]
-    src_name = sys.argv[2]
-    dst_domain = sys.argv[3]
-    dst_name = sys.argv[4]
+    src_domain = args[0]
+    src_name = args[1]
+    dst_domain = args[2]
+    dst_name = args[3]
 
     print(f"Cross-domain template copy:")
     print(f"  Source: {src_name} @ {src_domain}")
     print(f"  Destination: {dst_name} @ {dst_domain}")
+    if force_update:
+        print(f"  Mode: FORCE (skipping destination existence check)")
     print()
 
-    success = copy_template_cross_domain(src_domain, src_name, dst_domain, dst_name)
+    if force_update:
+        # Skip the existence check and go straight to update
+        print(f"Fetching template '{src_name}' from '{src_domain}'...")
+        src_template = get_template(src_domain, src_name)
+        if not src_template:
+            print(f"Source template '{src_name}' not found in domain '{src_domain}'.")
+            exit(1)
+
+        engine = src_template['version'].get('engine')
+        mjml = src_template['version'].get('mjml')
+        template_html = src_template['version']['template']
+        src_version_tag = src_template['version'].get('tag', 'active')
+
+        print(f"  Engine: {engine if engine else 'none'}")
+        print(f"  MJML: {len(mjml) if mjml else 0} chars")
+        print(f"  HTML: {len(template_html)} chars")
+
+        # Save source to audit trail
+        print(f"\nSaving source audit trail...")
+        save_audit_trail(src_domain, src_name, src_version_tag, template_html, mjml)
+
+        print(f"\n⚠️  FORCE mode: Attempting to update '{dst_name}' without checking if it exists...")
+
+        # Try to create backup of destination (may fail if template doesn't exist)
+        print(f"\nAttempting to backup destination template...")
+        dst_template = get_template(dst_domain, dst_name)
+        if dst_template:
+            dst_engine = dst_template['version'].get('engine')
+            dst_mjml = dst_template['version'].get('mjml')
+            dst_html = dst_template['version']['template']
+            create_backup_version(dst_domain, dst_name, dst_html, dst_engine, dst_mjml)
+        else:
+            print(f"  No existing template to backup")
+
+        result = create_template_version(dst_domain, dst_name, template_html, engine, mjml)
+        if result:
+            # Save destination to audit trail after successful copy
+            print(f"\nSaving destination audit trail...")
+            save_audit_trail(dst_domain, dst_name, 'initial', template_html, mjml)
+            print(f"\n✓ Successfully copied '{src_name}' from '{src_domain}' to '{dst_name}' in '{dst_domain}'")
+            success = True
+        else:
+            success = False
+    else:
+        success = copy_template_cross_domain(src_domain, src_name, dst_domain, dst_name)
+
     exit(0 if success else 1)
