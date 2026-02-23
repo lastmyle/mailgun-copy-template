@@ -1,13 +1,23 @@
 {
+  "env": {
+    "PATH": "/opt/homebrew/bin:${env:PATH}"
+  },
   "extraKnownMarketplaces": {
     "lastmyle": {
       "source": {
         "source": "github",
         "repo": "lastmyle/claude-plugins"
       }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
     }
   },
   "enabledPlugins": {
-    "lastmyle-shared@lastmyle": true
+    "lastmyle-shared@lastmyle": true,
+    "claude-md-management@claude-plugins-official": true
   }
 }
