@@ -1,0 +1,7 @@
+# gitleaks baseline: fingerprints of findings accepted on 2026-10-13.
+# Format: commit:file:rule:line. New secrets are still caught.
+# Both entries are false positives: a curl example that interpolates the key
+# from a variable, so no key value is in the source.
+
+cd1441f2d10f7892b6a2d7bd2f975f7bc3347a9e:mailgun-copy-template.py:curl-auth-user:32
+cd1441f2d10f7892b6a2d7bd2f975f7bc3347a9e:mailgun-list-versions.py:curl-auth-user:12
